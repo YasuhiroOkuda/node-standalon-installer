@@ -1,41 +1,43 @@
-# Express App Standalone Installer Project
+# Express App Standalone Installer Project (Windows Server Edition)
 
-このプロジェクトは、**インターネット接続のない（オフライン）Windows Server** に、Node.js アプリケーションを Windows サービスとして一括セットアップするためのインストーラー作成キットです。
+このプロジェクトは、オフラインの Windows Server 環境へ Express アプリケーションを「Windows サービス」として一括セットアップするためのパッケージ作成キットです。
 
-## 概要
+## 🌟 特徴
 
-* **Node.js**: v24.2.0 LTS (手動インストールの必要なし)
-* **Service Manager**: NSSM (Non-Sucking Service Manager)
-* **Installer**: Inno Setup
-* **Framework**: Express
+* **ポータブル**: Node.js 本体を同梱するため、サーバー側でのインストール作業が不要。
+* **堅牢**: NSSM を採用し、スペースやカッコを含む Windows 特有のパス問題（`C:\Program Files (x86)` 等）を相対パス方式で完全回避。
+* **完全自動化**: アセット取得からインストーラービルドまでスクリプトで完結。
+* **運用性**: OS 再起動時の自動起動、標準/エラーログのファイル出力、ファイアウォール自動開放に対応。
 
 ---
 
-## フォルダ構成
+## 📂 フォルダ構成
 
 ```text
 .
+├── dist/                # ビルドされたインストーラー (.exe) の出力先
 ├── src/
-│   ├── nodejs/       # Node.js バイナリ (setup_assets.ps1 で取得)
-│   ├── app/          # Express アプリケーション本体
-│   │   ├── main.js
+│   ├── nodejs/          # Node.js 24.x LTS バイナリ (自動取得)
+│   ├── app/             # Express アプリケーション本体
+│   │   ├── main.js      # 起動スクリプト
 │   │   ├── package.json
-│   │   └── node_modules/
-│   └── tools/        # nssm.exe (setup_assets.ps1 で取得)
-├── dist/             # 生成されたインストーラー (.exe) の出力先
-├── mysetup.iss       # Inno Setup 設定ファイル
-├── setup_assets.ps1  # 必要なバイナリの自動取得スクリプト
-└── README.md         # このファイル
+│   │   └── node_modules/# 依存ライブラリ (npm install --production)
+│   └── tools/           # NSSM (64bit版) バイナリ
+├── mysetup.iss          # Inno Setup コンパイル設定
+├── setup_assets.ps1     # Node.js/NSSM の自動ダウンロードスクリプト
+├── build_installer.ps1  # インストーラー生成スクリプト
+├── run_all.ps1          # 上記2つの工程を一括実行するスクリプト
+└── README.md            # このファイル
 
 ```
 
 ---
 
-## セットアップ手順（開発用PC / インターネットあり）
+## 🛠 構築手順（インターネット環境のある開発PC）
 
-### 1. 依存バイナリの取得
+### 1. 依存バイナリとライブラリの準備
 
-PowerShell を管理者権限で開き、以下のスクリプトを実行して Node.js と NSSM を準備します。
+PowerShell で以下を実行します。これにより `src/` フォルダに必要な資材がすべて揃います。
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
@@ -43,67 +45,58 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
 
 ```
 
-※ `nssm.cc` がダウンしている場合、スクリプト内の指示に従って手動で `src/tools/nssm.exe` を配置してください。
+※ `src/app/node_modules` も自動的に作成されます。
 
-### 2. アプリケーションの準備
+### 2. インストーラーのビルド
 
-`src/app/` ディレクトリに必要なソースコードを配置し、依存関係をインストールします。
+以下のスクリプトを実行して、`dist/` フォルダに `ExpressApp_Setup.exe` を生成します。
 
-```bash
-cd src/app
-npm install --production
+```powershell
+.\build_installer.ps1
 
 ```
 
-### 3. インストーラーの作成
-
-1. **Inno Setup** を起動します。
-2. `mysetup.iss` を読み込みます。
-3. `Build` > `Compile` (Ctrl+F9) を実行します。
-4. `dist/ExpressApp_Setup.exe` が生成されます。
+※ 事前に **Inno Setup 6** がインストールされている必要があります。
 
 ---
 
-## インストール手順（本番サーバー / オフライン）
+## 🚀 設置・運用手順（オフラインサーバー）
 
-1. 生成された `ExpressApp_Setup.exe` を対象サーバーに持ち込みます。
-2. **管理者権限**で実行します。
-3. インストール完了後、以下の処理が自動で行われます：
-* `C:\Program Files\ExpressApp` へのファイルコピー
-* Windows サービス `ExpressService` の登録と開始
-* Windows ファイアウォールのポート開放（デフォルト: 3000）
+### インストール
 
+1. `ExpressApp_Setup.exe` を管理者権限で実行します。
+2. デフォルトでは `C:\Program Files\ExpressApp` (64bit) または `C:\Program Files (x86)\ExpressApp` にインストールされます。
 
+### サービス管理
 
----
+アプリケーションは `ExpressService` という名前の Windows サービスとして登録されます。
 
-## 運用・メンテナンス
+* **起動/停止**: `services.msc`（サービス管理画面）から操作可能。
+* **自動起動**: OS 起動時にバックグラウンドで自動実行されます。
 
-### ログの確認
+### ログ確認
 
-アプリケーションの標準出力およびエラーログは、以下のパスに出力されます。
+不具合時の調査は、以下のファイルを確認してください。
 
-* `C:\Program Files\ExpressApp\app\out.log`
-* `C:\Program Files\ExpressApp\app\error.log`
-
-### サービスの管理
-
-Windows の「サービス」管理画面（`services.msc`）から、`ExpressService` という名前で開始・停止・再起動が可能です。
-
-### アンインストール
-
-「設定」>「アプリと機能」からアンインストールしてください。サービスおよびファイアウォールの規則も自動的に削除されます。
+* `.../app/out.log`（標準出力）
+* `.../app/error.log`（エラーログ）
 
 ---
 
-## トラブルシューティング
+## 💡 技術的なポイント
 
-* **サービスが起動しない**:
-* `error.log` を確認してください。
-* サーバーに `Visual C++ 再頒布可能パッケージ` がインストールされているか確認してください。
+* **パス問題の回避**:
+NSSM の `AppDirectory` を設定し、`AppParameters` を `main.js`（相対パス）のみにすることで、Windows のパスに含まれるスペースやカッコによる起動失敗を回避しています。
+* **64bit モード**:
+`ArchitecturesInstallIn64BitMode=x64` を有効にしているため、64bit Server では最適なパスに配置されます。
 
+---
 
-* **ポート競合**:
-* `netstat -ano | findstr :3000` で、他のプロセスがポートを使用していないか確認してください。
+## 🗑 アンインストール
 
+「設定」>「アプリと機能」から削除してください。以下の処理が自動で実行されます。
 
+1. 実行中のサービスを停止。
+2. Windows サービス登録を削除。
+3. ファイアウォールの開放規則を削除。
+4. インストールディレクトリのファイルを削除。
